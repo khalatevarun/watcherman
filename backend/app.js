@@ -14,4 +14,3 @@ websites.forEach(function (website) {
     });
     monitors.push(monitor);
 });
-
