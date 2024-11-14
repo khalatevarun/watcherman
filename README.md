@@ -9,3 +9,4 @@
 - Logs detailed information about website status and monitoring times.
 - Customizable monitoring frequency and notification settings.
 
+Goal![monitor dashboard](image.png)
