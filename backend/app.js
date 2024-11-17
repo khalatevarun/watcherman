@@ -4,6 +4,11 @@ import cors from 'cors';
 import { STATUS_CODES as statusCodes } from 'http';
 import request from 'request';
 import mailer from './lib/mailer.js';
+import { createClient } from '@supabase/supabase-js';
+import { supabase_url, supasbase_service_role } from './config.js';
+
+// Initialize Supabase client
+const supabase = createClient(supabase_url, supasbase_service_role);
 
 const app = express();
 app.use(cors({
@@ -63,7 +68,7 @@ class WebsiteMonitor {
         }
     }
 
-    updateStatus(status, message) {
+   async updateStatus(status, message) {
         this.status = status;
         this.message = message;
         this.lastChecked = new Date().toISOString();
@@ -76,9 +81,29 @@ class WebsiteMonitor {
             lastChecked: this.lastChecked
         };
 
+                
         clients.forEach(client => {
             client.res.write(`data: ${JSON.stringify(statusUpdate)}\n\n`);
         });
+        
+        // Store in Supabase
+        try {
+            const { error } = await supabase
+                .from('website_monitoring')
+                .insert([{
+                    address: this.url,
+                    status: this.status === 'UP' ? true : false,
+                    message: this.message,
+                    lastChecked: this.lastChecked
+                }]);
+
+            if (error) {
+                console.error('Error storing status in Supabase:', error);
+            }
+        } catch (error) {
+            console.error('Failed to store status in Supabase:', error);
+        }
+
     }
 
     sendAlertEmail() {

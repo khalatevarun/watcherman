@@ -10,6 +10,7 @@
   "type": "module",
   "license": "ISC",
   "dependencies": {
+    "@supabase/supabase-js": "^2.46.1",
     "cors": "^2.8.5",
     "express": "^4.21.1",
     "nodemailer": "^6.9.16",
