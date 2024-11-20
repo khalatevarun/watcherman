@@ -27,17 +27,29 @@ const clients = new Set();
 class WebsiteMonitor {
     constructor(url, timeout = 15) {
         this.url = url;
-        this.timeout = timeout * (60 * 1000);
+        this.timeout = timeout * 1000; // Convert to milliseconds
         this.status = 'PENDING';
         this.lastChecked = null;
         this.message = '';
+        this.latency = null;
         this.handle = null;
+        this.isChecking = false; // Flag to track if a check is in progress
+        this.missedChecks = 0; // Counter for missed checks due to long responses
     }
 
     start() {
         console.log(`Starting monitoring for ${this.url}`);
         this.watch(); // Initial check
-        this.handle = setInterval(() => this.watch(), this.timeout);
+        this.handle = setInterval(() => {
+            if (this.isChecking) {
+                console.log(`Previous check for ${this.url} still in progress. Missed checks: ${++this.missedChecks}`);
+                if (this.missedChecks >= 3) { // Alert after 3 consecutive missed checks
+                    this.updateStatus('DELAYED', `Response time consistently exceeding ${this.timeout}ms`, null);
+                }
+                return;
+            }
+            this.watch();
+        }, this.timeout);
     }
 
     stop() {
@@ -45,66 +57,89 @@ class WebsiteMonitor {
             clearInterval(this.handle);
             this.handle = null;
         }
+        this.isChecking = false;
+        this.missedChecks = 0;
     }
 
     async watch() {
+        this.isChecking = true;
+        const startTime = Date.now();
+
         try {
             const response = await new Promise((resolve, reject) => {
-                request(this.url, (error, response, body) => {
+                const req = request({
+                    url: this.url,
+                    timeout: this.timeout // Set request timeout to match interval
+                }, (error, response, body) => {
                     if (error) reject(error);
                     else resolve(response);
                 });
+
+                req.on('timeout', () => {
+                    req.abort();
+                    reject(new Error(`Request timed out after ${this.timeout}ms`));
+                });
             });
 
+            const endTime = Date.now();
+            const latency = endTime - startTime;
+            this.missedChecks = 0; // Reset missed checks counter on successful response
+
             if (response.statusCode === 200) {
-                this.updateStatus('UP', 'OK');
+                this.updateStatus('UP', 'OK', latency);
             } else {
-                this.updateStatus('DOWN', statusCodes[response.statusCode]);
-                this.sendAlertEmail();
+                this.updateStatus('DOWN', statusCodes[response.statusCode], latency);
+                // this.sendAlertEmail();
             }
         } catch (error) {
-            this.updateStatus('DOWN', error.message);
-            this.sendAlertEmail();
+            const errorLatency = Date.now() - startTime;
+            this.updateStatus('DOWN', error.message, errorLatency);
+            // this.sendAlertEmail();
+        } finally {
+            this.isChecking = false;
         }
     }
 
-   async updateStatus(status, message) {
+    async updateStatus(status, message, latency) {
         this.status = status;
         this.message = message;
+        this.latency = latency;
         this.lastChecked = new Date().toISOString();
 
-        // Notify all connected clients
+        console.log(`[${this.url}] Status: ${status}, Message: ${message}, Latency: ${latency}ms`);
+
         const statusUpdate = {
             url: this.url,
             status: this.status,
             message: this.message,
-            lastChecked: this.lastChecked
+            lastChecked: this.lastChecked,
+            latency: this.latency,
+            missedChecks: this.missedChecks
         };
 
-                
-        clients.forEach(client => {
-            client.res.write(`data: ${JSON.stringify(statusUpdate)}\n\n`);
-        });
-        
-        // Store in Supabase
         try {
             const { error } = await supabase
                 .from('website_monitoring')
                 .insert([{
                     address: this.url,
-                    status: this.status === 'UP' ? true : false,
+                    status: this.status,
                     message: this.message,
-                    lastChecked: this.lastChecked
+                    lastChecked: this.lastChecked,
+                    latency: this.latency,
                 }]);
 
             if (error) {
-                console.error('Error storing status in Supabase:', error);
+                console.error('Error storing status in Supabase:', JSON.stringify(error));
             }
         } catch (error) {
-            console.error('Failed to store status in Supabase:', error);
+            console.error('Failed to store status in Supabase:', error.message);
         }
 
+        clients.forEach(client => {
+            client.res.write(`data: ${JSON.stringify(statusUpdate)}\n\n`);
+        });
     }
+
 
     sendAlertEmail() {
         const htmlMsg = `

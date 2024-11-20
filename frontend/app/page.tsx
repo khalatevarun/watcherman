@@ -1,14 +1,23 @@
-// app/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
-import styles from "./page.module.css";
+import { createClient } from '@supabase/supabase-js';
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { supabase_url, supasbase_service_role } from '../../config.js';
+
+const supabase = createClient(
+  supabase_url,
+  supasbase_service_role
+);
 
 interface Website {
-  url: string;
+  id: number;
+  address: string;
   status: string;
   message: string;
   lastChecked: string;
+  latency: number;
+  created_at: string;
 }
 
 export default function Home() {
@@ -16,52 +25,49 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [websites, setWebsites] = useState<Website[]>([]);
+  const [activeUrl, setActiveUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    // Set up SSE connection
-    const sse = new EventSource('http://localhost:3001/api/status-stream');
-
-    sse.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      setWebsites(Array.isArray(data) ? data : [data]);
-    };
-
-    sse.onerror = (error) => {
-      console.error('SSE Error:', error);
-      sse.close();
-    };
-
-    // Cleanup on unmount
-    return () => {
-      sse.close();
-    };
+    fetchWebsites();
+    setupRealtimeSubscription();
   }, []);
+
+  const fetchWebsites = async () => {
+    const { data } = await supabase
+      .from('website_monitoring')
+      .select('*')
+      .order('lastChecked', { ascending: false });
+
+    if (data?.length) {
+      setWebsites(data);
+      setActiveUrl(data[0].address);
+    }
+  };
+
+  const setupRealtimeSubscription = () => {
+    const subscription = supabase
+      .channel('website_monitoring')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'website_monitoring' },
+        (payload) => setWebsites(current => [payload.new as Website, ...current])
+      )
+      .subscribe();
+
+    return () => subscription.unsubscribe();
+  };
 
   const addWebsite = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
-
     try {
       const response = await fetch('http://localhost:3001/api/monitor', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          url,
-          timeout: 0.25
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, timeout: 2 }),
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to add website');
-      }
-
+      if (!response.ok) throw new Error('Failed to add website');
       setUrl('');
-      // Status updates will come through SSE
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -69,100 +75,145 @@ export default function Home() {
     }
   };
 
-  const getStatusClass = (status: string) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case 'UP':
-        return styles.statusUp;
-      case 'DOWN':
-        return styles.statusDown;
-      default:
-        return styles.statusPending;
+      case 'UP': return '#4ade80'; // pale green
+      case 'DOWN': return '#f87171'; // pale red
+      case 'DELAYED': return '#fbbf24'; // pale yellow
+      default: return '#d1d5db'; // light grey
     }
   };
 
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <div className={styles.title}>
-          <h2>WatchMan - Focus on building great products and let us monitor the rest</h2>
-        </div>
+  const uniqueUrls = Array.from(new Set(websites.map(site => site.address)));
+  const activeWebsiteData = websites
+    .filter(site => site.address === activeUrl)
+    .sort((a, b) => new Date(a.lastChecked).getTime() - new Date(b.lastChecked).getTime())
+    .slice(-20);
 
-        <form onSubmit={addWebsite} className={styles.monitorForm}>
+    return (
+<div className="px-4 md:px-8 lg:px-16 py-4 bg-white min-h-screen text-black">      
+<h1 className="text-2xl font-bold mb-6">WatchMan</h1>
+  
+        <form onSubmit={addWebsite} className="mb-8 flex gap-2">
           <input
             type="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="Enter website URL to monitor"
+            placeholder="Enter website URL"
+            className="flex-1 px-3 py-2 rounded bg-white text-black border-gray-200 border"
             required
-            className={styles.input}
           />
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={loading}
-            className={styles.button}
+            className="px-4 py-2 bg-white text-black rounded hover:bg-gray-100 border border-gray-200"
           >
-            {loading ? (
-              <>
-                <svg 
-                  className={styles.loading} 
-                  width="16" 
-                  height="16" 
-                  viewBox="0 0 24 24"
-                >
-                  <path 
-                    fill="currentColor" 
-                    d="M12,4V2A10,10 0 0,0 2,12H4A8,8 0 0,1 12,4Z"
-                  />
-                </svg>
-                Adding...
-              </>
-            ) : (
-              <>
-                <svg 
-                  width="16" 
-                  height="16" 
-                  viewBox="0 0 24 24"
-                >
-                  <path 
-                    fill="currentColor" 
-                    d="M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20,12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M13,7H11V11H7V13H11V17H13V13H17V11H13V7Z"
-                  />
-                </svg>
-                Add Website
-              </>
-            )}
+            {loading ? 'Adding...' : 'Monitor'}
           </button>
         </form>
-
-        {error && (
-          <div className={styles.error}>
-            {error}
-          </div>
-        )}
-
-        <div className={styles.websiteList}>
-          {websites.map((website, index) => (
-            <div key={website.url + index} className={styles.websiteCard}>
-              <div className={styles.websiteHeader}>
-                <div className={styles.websiteUrl}>{website.url}</div>
-                <span className={`${styles.status} ${getStatusClass(website.status)}`}>
-                  {website.status}
-                </span>
-              </div>
-              <div className={styles.websiteInfo}>
-                {website.message && (
-                  <div>Message: {website.message}</div>
-                )}
-                {website.lastChecked && (
-                  <div>
-                    Last checked: {new Date(website.lastChecked).toLocaleString()}
-                  </div>
-                )}
-              </div>
-            </div>
+  
+        {error && <div className="mb-4 text-red-500">{error}</div>}
+  
+        <div className="flex gap-4 mb-4 flex-wrap">
+          {uniqueUrls.map(url => (
+            <button
+              key={url}
+              onClick={() => setActiveUrl(url)}
+              className={`px-4 py-2 rounded border ${
+                activeUrl === url 
+                  ? 'bg-black text-white' 
+                  : 'bg-white text-black hover:bg-gray-100 border-gray-200'
+              }`}
+            >
+              {url}
+            </button>
           ))}
         </div>
-      </main>
-    </div>
-  );
+  
+        {activeUrl && (
+          <div className="space-y-6">
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              {(() => {
+                const latest = websites.find(site => site.address === activeUrl);
+                if (!latest) return null;
+                return (
+                  <div className="space-y-2">
+                    <div 
+                      className="inline-block px-3 py-1 rounded text-black font-medium"
+                      style={{ backgroundColor: getStatusColor(latest.status) }}
+                    >
+                      {latest.status}
+                    </div>
+                    <p className="text-black">Latency: <span className="text-blue-500 font-medium">{latest.latency}ms</span></p>
+                    <p className="text-gray-600">Message: {latest.message}</p>
+                    <p className="text-gray-600">Last Checked: {new Date(latest.lastChecked).toLocaleString()}</p>
+                  </div>
+                );
+              })()}
+            </div>
+  
+            <div className="bg-white p-6 rounded-lg border border-gray-200">
+              <h3 className="text-lg font-semibold mb-4">Latency History</h3>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={activeWebsiteData}>
+                    <XAxis 
+                      dataKey="lastChecked"
+                      tickFormatter={(time) => new Date(time).toLocaleTimeString()}
+                      stroke="#374151"
+                    />
+                    <YAxis stroke="#374151" />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb' }}
+                      labelFormatter={(label) => new Date(label).toLocaleString()}
+                      formatter={(value: any) => [`${value}ms`, 'Latency']}
+                    />
+                    <Line 
+                      type="monotone"
+                      dataKey="latency"
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+  
+            <div className="bg-white p-6 rounded-lg border border-gray-200 overflow-x-auto">
+              <h3 className="text-lg font-semibold mb-4">Recent History</h3>
+              <table className="w-full">
+                <thead>
+                  <tr>
+                    <th className="text-left p-2 text-gray-600">Time</th>
+                    <th className="text-left p-2 text-gray-600">Status</th>
+                    <th className="text-left p-2 text-gray-600">Latency</th>
+                    <th className="text-left p-2 text-gray-600">Message</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {websites
+                    .filter(site => site.address === activeUrl)
+                    .slice(0, 10)
+                    .map(site => (
+                      <tr key={site.id} className="border-b border-gray-100">
+                        <td className="p-2 text-gray-600">{new Date(site.lastChecked).toLocaleString()}</td>
+                        <td className="p-2">
+                          <span 
+                            className="px-2 py-1 rounded text-black text-sm font-medium"
+                            style={{ backgroundColor: getStatusColor(site.status) }}
+                          >
+                            {site.status}
+                          </span>
+                        </td>
+                        <td className="p-2 text-blue-500 font-medium">{site.latency}ms</td>
+                        <td className="p-2 text-gray-600">{site.message}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    );
 }
