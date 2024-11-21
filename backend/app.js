@@ -11,7 +11,7 @@ const supabase = createClient(process.env.supabase_url, process.env.supasbase_se
 
 const app = express();
 app.use(cors({
-    origin: '*', // Your Next.js app URL
+    origin: 'https://watchman-frontend-peach.vercel.app/', // Your Next.js app URL
     methods: ['GET', 'POST', 'DELETE'],
     allowedHeaders: ['Content-Type'],
     credentials: true
