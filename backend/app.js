@@ -3,18 +3,21 @@ import express from 'express';
 import cors from 'cors';
 import { STATUS_CODES as statusCodes } from 'http';
 import request from 'request';
-import mailer from './lib/mailer.js';
+// import mailer from './lib/mailer.js';
 import { createClient } from '@supabase/supabase-js';
+import 'dotenv/config';
 
 // Initialize Supabase client
-const supabase = createClient(process.env.supabase_url, process.env.supasbase_service_role);
+const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE ?? ''
+  );
 
 const app = express();
 app.use(cors({
-    origin: ['https://watchman-frontend-peach.vercel.app', 'http://localhost:3000'],
+    origin: '*',
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: false  
 }));
 app.use(express.json());
 
@@ -140,26 +143,26 @@ class WebsiteMonitor {
     }
 
 
-    sendAlertEmail() {
-        const htmlMsg = `
-            <p>Time: ${this.lastChecked}</p>
-            <p>Website: ${this.url}</p>
-            <p>Message: ${this.message}</p>
-        `;
+    // sendAlertEmail() {
+    //     const htmlMsg = `
+    //         <p>Time: ${this.lastChecked}</p>
+    //         <p>Website: ${this.url}</p>
+    //         <p>Message: ${this.message}</p>
+    //     `;
 
-        mailer({
-            from: 'khalatevarun@gmail.com',
-            to: 'varunnewsletter@gmail.com',
-            subject: `Watchman Alert: ${this.url} is down`,
-            body: htmlMsg
-        }, (error, res) => {
-            if (error) {
-                console.log('Email error:', error);
-            } else {
-                console.log(res.message || 'Failed to send email');
-            }
-        });
-    }
+    //     mailer({
+    //         from: 'khalatevarun@gmail.com',
+    //         to: 'varunnewsletter@gmail.com',
+    //         subject: `Watchman Alert: ${this.url} is down`,
+    //         body: htmlMsg
+    //     }, (error, res) => {
+    //         if (error) {
+    //             console.log('Email error:', error);
+    //         } else {
+    //             console.log(res.message || 'Failed to send email');
+    //         }
+    //     });
+    // }
 }
 
 // API Endpoint 1: Add new website to monitor

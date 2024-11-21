@@ -1,5 +1,4 @@
 import { createTransport } from 'nodemailer';
-import { email, password } from '../config.js';
 
 export default function mailer(opts, fn) {
     let smtpTrans;
@@ -9,8 +8,8 @@ export default function mailer(opts, fn) {
         smtpTrans = createTransport({
             service: 'Gmail',
             auth: {
-                user: email,
-                pass: password
+                user: process.env.email,
+                pass: process.env.password
             }
         });
     } catch (err) {
