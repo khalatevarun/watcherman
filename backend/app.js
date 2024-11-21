@@ -11,7 +11,7 @@ const supabase = createClient(process.env.supabase_url, process.env.supasbase_se
 
 const app = express();
 app.use(cors({
-    origin: 'http://localhost:3000', // Your Next.js app URL
+    origin: '*', // Your Next.js app URL
     methods: ['GET', 'POST', 'DELETE'],
     allowedHeaders: ['Content-Type'],
     credentials: true

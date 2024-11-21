@@ -9,6 +9,8 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE ?? ''
 );
 
+const BASE_URL = 'https://watchman-beta.vercel.app/'
+
 interface Website {
   id: number;
   address: string;
@@ -60,7 +62,7 @@ export default function Home() {
     e.preventDefault();
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/monitor', {
+      const response = await fetch(`${BASE_URL}api/monitor`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, timeout: 2 }),
