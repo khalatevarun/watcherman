@@ -14,10 +14,22 @@ const supabase = createClient(
   );
 
 const app = express();
+const allowedOrigins = [
+    'http://localhost:3000', // For local development (adjust port if needed)
+    'https://watchman-frontend-peach.vercel.app/' // Replace with your deployed frontend URL on Vercel
+];
+
 app.use(cors({
-    origin: '*',
+    origin: (origin, callback) => {
+        if (allowedOrigins.includes(origin) || !origin) {
+            callback(null, true); // Allow the request
+        } else {
+            callback(new Error('Not allowed by CORS')); // Reject if origin is not allowed
+        }
+    },
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true, // Allow cookies to be sent with requests
 }));
 app.use(express.json());
 
