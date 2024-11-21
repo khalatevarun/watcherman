@@ -9,7 +9,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE ?? ''
 );
 
-const BASE_URL = 'https://watchman-beta.vercel.app/'
+const BASE_URL = 'https://watchman-backend.vercel.app/'
 
 interface Website {
   id: number;
