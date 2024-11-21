@@ -5,8 +5,8 @@ import { createClient } from '@supabase/supabase-js';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 const supabase = createClient(
-  process.env.supabase_url ?? '',
-  process.env.supasbase_service_role ?? ''
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE ?? ''
 );
 
 interface Website {
