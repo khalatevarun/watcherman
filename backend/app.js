@@ -11,11 +11,11 @@ const supabase = createClient(process.env.supabase_url, process.env.supasbase_se
 
 const app = express();
 app.use(cors({
-    origin: 'https://watchman-frontend-peach.vercel.app', // Your Next.js app URL
-    methods: ['GET', 'POST', 'DELETE'],
-    allowedHeaders: ['Content-Type'],
-    credentials: true
-  }));
+    origin: ['https://watchman-frontend-peach.vercel.app', 'http://localhost:3000'],
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: false  
+}));
 app.use(express.json());
 
 // In-memory storage for monitored websites and their status
