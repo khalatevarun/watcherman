@@ -16,7 +16,7 @@ const supabase = createClient(
 const app = express();
 const allowedOrigins = [
     'http://localhost:3000', // For local development (adjust port if needed)
-    'https://watchman-frontend-peach.vercel.app/' // Replace with your deployed frontend URL on Vercel
+    'https://watchman-frontend-peach.vercel.app' // Replace with your deployed frontend URL on Vercel
 ];
 
 app.use(cors({
