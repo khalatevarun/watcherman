@@ -5,10 +5,9 @@ import { STATUS_CODES as statusCodes } from 'http';
 import request from 'request';
 import mailer from './lib/mailer.js';
 import { createClient } from '@supabase/supabase-js';
-import { supabase_url, supasbase_service_role } from './config.js';
 
 // Initialize Supabase client
-const supabase = createClient(supabase_url, supasbase_service_role);
+const supabase = createClient(process.env.supabase_url, process.env.supasbase_service_role);
 
 const app = express();
 app.use(cors({

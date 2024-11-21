@@ -3,11 +3,10 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { supabase_url, supasbase_service_role } from '../../config.js';
 
 const supabase = createClient(
-  supabase_url,
-  supasbase_service_role
+  process.env.supabase_url ?? '',
+  process.env.supasbase_service_role ?? ''
 );
 
 interface Website {
