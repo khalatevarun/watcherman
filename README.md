@@ -1,7 +1,6 @@
 # Watchman
 
-**Watchman** is a simple Node.js-based monitoring tool that checks the availability and status of a specified website. If the website becomes unresponsive or encounters an issue, Watchman logs the incident and sends an alert email notification.
-
+**Watchman** is a monitoring tool that checks the availability and status of specified websites/services. It logs the status, availability and latency.
 ## Features
 
 - Monitors the uptime and status of a website at specified intervals.
