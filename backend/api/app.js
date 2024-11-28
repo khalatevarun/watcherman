@@ -243,19 +243,48 @@ app.get('/api/websites', (req, res) => {
 });
 
 // API Endpoint 4: Remove website from monitoring
-app.delete('/api/monitor/:url', (req, res) => {
+// In your backend app.js, modify the delete endpoint:
+
+app.delete('/api/monitor/:url', async (req, res) => {
     const url = decodeURIComponent(req.params.url);
-    const monitor = monitoredWebsites.get(url);
 
-    if (!monitor) {
-        return res.status(404).json({ error: 'Website not found' });
+    console.log('Deleting website:', url);
+ 
+    try {
+        // Check if website exists in Supabase
+        const { data, error: fetchError } = await supabase
+            .from('website_monitoring')
+            .select('address')
+            .eq('address', url)
+ 
+        if (fetchError || !data) {
+            console.log('Website not found in Supabase:', fetchError);
+            return res.status(404).json({ error: 'Website not found' });
+        }
+ 
+        // Delete from Supabase
+        const { error: deleteError } = await supabase
+            .from('website_monitoring')
+            .delete()
+            .eq('address', url);
+ 
+        if (deleteError) {
+            throw deleteError;
+        }
+ 
+        // If exists in memory, stop monitoring and delete
+        if (monitoredWebsites.has(url)) {
+            const monitor = monitoredWebsites.get(url);
+            monitor.stop();
+            monitoredWebsites.delete(url);
+        }
+ 
+        res.json({ message: 'Website monitoring stopped and records deleted', url });
+    } catch (error) {
+        console.error('Failed to delete records:', error);
+        res.status(500).json({ error: 'Failed to delete website records' });
     }
-
-    monitor.stop();
-    monitoredWebsites.delete(url);
-
-    res.json({ message: 'Website monitoring stopped', url });
-});
+ });
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
