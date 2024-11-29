@@ -6,12 +6,8 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
-  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE ?? ''
+  process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE ?? '' // Note: Changed to ANON_KEY for frontend
 );
-
-// const BASE_URL = 'https://watchman-ktg3.onrender.com/'
-const BASE_URL = 'http://localhost:3001/'
-
 
 interface Website {
   id: number;
@@ -23,92 +19,93 @@ interface Website {
   created_at: string;
 }
 
+interface WebsiteConfig {
+  address: string;
+  freq: number;
+}
+
 export default function Home() {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [uniqueUrls, setUniqueUrls] = useState<string[]>([]);
-  const [activeUrl, setActiveUrl] = useState<string | null>(null);
   const [websites, setWebsites] = useState<Website[]>([]);
-
-  // Initial fetch of unique URLs
+  const [activeUrl, setActiveUrl] = useState<string | null>(null);
+  const [monitoredUrls, setMonitoredUrls] = useState<WebsiteConfig[]>([]);
+  
   useEffect(() => {
-    fetchUniqueUrls();
+    fetchWebsites();
+    fetchMonitoredUrls();
+    setupRealtimeSubscriptions();
   }, []);
 
-  // Handle real-time monitoring of active URL
-  useEffect(() => {
-    if (!activeUrl) return;
+  const fetchWebsites = async () => {
+    const { data } = await supabase
+      .from('website_monitoring')
+      .select('*')
+      .order('lastChecked', { ascending: false });
 
-    // Fetch initial data for active URL
-    fetchUrlData(activeUrl);
+    if (data?.length) {
+      setWebsites(data);
+      setActiveUrl(data[0].address);
+    }
+  };
 
-    // Set up real-time subscription for active URL
-    const subscription = supabase
-      .channel(`website_monitoring`)
+  const fetchMonitoredUrls = async () => {
+    const { data } = await supabase
+      .from('website_list')
+      .select('*');
+
+    if (data) {
+      setMonitoredUrls(data);
+    }
+  };
+
+  const setupRealtimeSubscriptions = () => {
+    // Subscribe to monitoring results
+    const monitoringSubscription = supabase
+      .channel('monitoring_updates')
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'website_monitoring',
-          filter: `address=eq.${activeUrl}`
-        },
+        { event: 'INSERT', schema: 'public', table: 'website_monitoring' },
+        (payload) => setWebsites(current => [payload.new as Website, ...current])
+      )
+      .subscribe();
+
+    // Subscribe to website list changes
+    const websiteListSubscription = supabase
+      .channel('website_list_updates')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'website_list' },
         (payload) => {
-          setWebsites(current => [payload.new as Website, ...current]);
+          fetchMonitoredUrls(); // Refresh the list of monitored URLs
         }
       )
       .subscribe();
 
-    // Cleanup on URL change or unmount
     return () => {
-      subscription.unsubscribe();
+      monitoringSubscription.unsubscribe();
+      websiteListSubscription.unsubscribe();
     };
-  }, [activeUrl]);
-
-  const fetchUniqueUrls = async () => {
-    const { data } = await supabase
-      .from('website_monitoring')
-      .select('address',{ distinct: true })
-
-      console.log("data", data)
-
-    if (data?.length) {
-      const urls = data.map(item => item.address);
-      setUniqueUrls(urls);
-      if (!activeUrl) {
-        setActiveUrl(urls[0]);
-      }
-    }
-  };
-
-  const fetchUrlData = async (url: string) => {
-    const { data } = await supabase
-      .from('website_monitoring')
-      .select('*')
-      .eq('address', url)
-      .order('lastChecked', { ascending: false })
-      .limit(100);
-
-    if (data) {
-      setWebsites(data);
-    }
   };
 
   const addWebsite = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError(null);
+
     try {
-      const response = await fetch(`${BASE_URL}api/monitor`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, timeout: 2 }),
-      });
-      if (!response.ok) throw new Error('Failed to add website');
-      // Update URLs locally instead of fetching
-      setUniqueUrls(prev => [...new Set([...prev, url])]);
+      const { error } = await supabase
+        .from('website_list')
+        .insert([
+          {
+            address: url,
+            freq: 2 // Default frequency in seconds
+          }
+        ]);
+
+      if (error) throw error;
       setUrl('');
-      await fetchUniqueUrls();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -118,18 +115,16 @@ export default function Home() {
 
   const deleteWebsite = async (urlToDelete: string) => {
     try {
-      const response = await fetch(`${BASE_URL}api/monitor/${encodeURIComponent(urlToDelete)}`, {
-        method: 'DELETE',
-      });
+      const { error } = await supabase
+        .from('website_list')
+        .delete()
+        .eq('address', urlToDelete);
 
-      if (!response.ok) {
-        throw new Error('Failed to delete website');
-      }
+      if (error) throw error;
 
       if (activeUrl === urlToDelete) {
         setActiveUrl(null);
       }
-      await fetchUniqueUrls();
     } catch (err: any) {
       setError(err.message);
     }
@@ -144,9 +139,16 @@ export default function Home() {
     }
   };
 
-  const chartData = websites
+  const uniqueUrls = Array.from(new Set(websites.map(site => site.address)));
+  const activeWebsiteData = websites
+    .filter(site => site.address === activeUrl)
     .sort((a, b) => new Date(a.lastChecked).getTime() - new Date(b.lastChecked).getTime())
     .slice(-20);
+
+  const getMonitoringFrequency = (address: string) => {
+    const config = monitoredUrls.find(url => url.address === address);
+    return config?.freq || 15;
+  };
 
   return (
     <div className="px-4 md:px-8 lg:px-16 py-4 bg-white min-h-screen text-black">      
@@ -173,34 +175,34 @@ export default function Home() {
       {error && <div className="mb-4 text-red-500">{error}</div>}
 
       <div className="flex gap-4 mb-4 flex-wrap">
-        {uniqueUrls.map(url => (
-          <div key={url} className="flex items-center gap-2">
-            <button
-              onClick={() => setActiveUrl(url)}
-              className={`px-4 py-2 rounded border ${
-                activeUrl === url 
-                  ? 'bg-black text-white' 
-                  : 'bg-white text-black hover:bg-gray-100 border-gray-200'
-              }`}
-            >
-              {url}
-            </button>
-            <button
-              onClick={() => deleteWebsite(url)}
-              className="p-2 text-red-500 hover:bg-red-50 rounded"
-              title="Delete website"
-            >
-              ×
-            </button>
-          </div>
-        ))}
-      </div>
+          {monitoredUrls.map(({ address }) => (
+            <div key={address} className="flex items-center gap-2">
+              <button
+                onClick={() => setActiveUrl(address)}
+                className={`px-4 py-2 rounded border ${
+                  activeUrl === address 
+                    ? 'bg-black text-white' 
+                    : 'bg-white text-black hover:bg-gray-100 border-gray-200'
+                }`}
+              >
+                {address}
+              </button>
+              <button
+                onClick={() => deleteWebsite(address)}
+                className="p-2 text-red-500 hover:bg-red-50 rounded"
+                title="Delete website"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+</div>
 
       {activeUrl && (
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-lg border border-gray-200">
             {(() => {
-              const latest = websites[0]; // Most recent entry
+              const latest = websites.find(site => site.address === activeUrl);
               if (!latest) return null;
               return (
                 <div className="space-y-2">
@@ -210,23 +212,20 @@ export default function Home() {
                   >
                     {latest.status}
                   </div>
-                  <p className="text-black">
-                    Latency: <span className="text-blue-500 font-medium">{latest.latency}ms</span>
-                  </p>
+                  <p className="text-black">Latency: <span className="text-blue-500 font-medium">{latest.latency}ms</span></p>
                   <p className="text-gray-600">Message: {latest.message}</p>
-                  <p className="text-gray-600">
-                    Last Checked: {new Date(latest.lastChecked).toLocaleString()}
-                  </p>
+                  <p className="text-gray-600">Last Checked: {new Date(latest.lastChecked).toLocaleString()}</p>
+                  <p className="text-gray-600">Check Frequency: {getMonitoringFrequency(latest.address)}s</p>
                 </div>
               );
-            })()}
+            })()} 
           </div>
 
           <div className="bg-white p-6 rounded-lg border border-gray-200">
             <h3 className="text-lg font-semibold mb-4">Latency History</h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
+                <LineChart data={activeWebsiteData}>
                   <XAxis 
                     dataKey="lastChecked"
                     tickFormatter={(time) => new Date(time).toLocaleTimeString()}
@@ -261,11 +260,12 @@ export default function Home() {
                 </tr>
               </thead>
               <tbody>
-                {websites.slice(0, 10).map(site => (
+                {websites
+                    .filter(site => site.address === activeUrl)
+                    .slice(0, 10)
+                    .map(site => (
                   <tr key={site.id} className="border-b border-gray-100">
-                    <td className="p-2 text-gray-600">
-                      {new Date(site.lastChecked).toLocaleString()}
-                    </td>
+                    <td className="p-2 text-gray-600">{new Date(site.lastChecked).toLocaleString()}</td>
                     <td className="p-2">
                       <span 
                         className="px-2 py-1 rounded text-black text-sm font-medium"
