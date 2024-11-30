@@ -11,6 +11,8 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.46.1",
     "@tailwindcss/typography": "^0.5.15",
+    "date-fns": "^4.1.0",
+    "lucide-react": "^0.462.0",
     "next": "15.0.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

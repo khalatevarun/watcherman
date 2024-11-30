@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { ScanEye } from 'lucide-react';
+import DataExportModal from './components/DataExportModal';
+import Button from './components/Button';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
@@ -160,16 +163,16 @@ export default function Home() {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="Enter website URL"
-          className="flex-1 px-3 py-2 rounded bg-white text-black border-gray-200 border"
+          className="flex-1 px-3 py-2 rounded bg-white text-black border-black-200 border"
           required
         />
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-4 py-2 bg-white text-black rounded hover:bg-gray-100 border border-gray-200"
-        >
-          {loading ? 'Adding...' : 'Monitor'}
-        </button>
+        <Button
+         defaultText='Monitor'
+         loadingText='Adding...'
+          isLoading={loading}
+          icon={<ScanEye className="w-4 h-4" />}
+          type='submit'
+        />
       </form>
 
       {error && <div className="mb-4 text-red-500">{error}</div>}
@@ -249,7 +252,10 @@ export default function Home() {
           </div>
 
           <div className="bg-white p-6 rounded-lg border border-gray-200 overflow-x-auto">
-            <h3 className="text-lg font-semibold mb-4">Recent History</h3>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold">Recent History</h3>
+            <DataExportModal supabase={supabase} activeUrl={activeUrl} />
+          </div>
             <table className="w-full">
               <thead>
                 <tr>
