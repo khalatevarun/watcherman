@@ -1,6 +1,6 @@
-# Watchman
+# Watcherman
 
-**Watchman** is a monitoring tool that checks the availability and status of specified websites/services. It logs the status, availability and latency.
+**Watcherman** is a monitoring tool that checks the availability and status of specified websites/services. It logs the status, availability and latency.
 ## Features
 
 - Monitors the uptime and status of a website at specified intervals.
