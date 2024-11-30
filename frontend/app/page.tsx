@@ -152,7 +152,7 @@ export default function Home() {
 
   return (
     <div className="px-4 md:px-8 lg:px-16 py-4 bg-white min-h-screen text-black">      
-      <h1 className="text-2xl font-bold mb-6">WatchMan</h1>
+      <h1 className="text-2xl font-bold mb-6">WatcherMan</h1>
 
       <form onSubmit={addWebsite} className="mb-8 flex gap-2">
         <input

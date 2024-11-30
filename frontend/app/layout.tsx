@@ -14,7 +14,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Watchman",
+  title: "WatcherMan",
   description: "Monitor your websites with ease",
 };
 
