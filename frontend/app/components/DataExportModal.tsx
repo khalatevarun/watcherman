@@ -227,11 +227,10 @@ const downloadCompleteReport = async (): Promise<void> => {
     const { count } = await supabase
       .from('website_monitoring')
       .select('*', { count: 'exact', head: true })
-      .eq('address', activeUrl); // Always filter by activeUrl;
+      .eq('address', activeUrl); 
 
     if (!count) throw new Error('No data available');
 
-    // Calculate number of pages needed (assuming 1000 per page)
     const pageSize = 1000;
     const pages = Math.ceil(count / pageSize);
     let allData: any[] = [];
@@ -241,7 +240,7 @@ const downloadCompleteReport = async (): Promise<void> => {
       const { data, error } = await supabase
         .from('website_monitoring')
         .select('*')
-        .eq('address', activeUrl) // Always filter by activeUrl
+        .eq('address', activeUrl) 
         .order('lastChecked', { ascending: true })
         .range(i * pageSize, (i + 1) * pageSize - 1);
 
