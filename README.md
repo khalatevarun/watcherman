@@ -117,6 +117,3 @@ The monitoring service runs independently and:
 - Manages monitoring frequencies per website
 - Provides real-time updates via Supabase subscriptions
 
-## License
-
-This project is open source and available under the [MIT License](LICENSE).
